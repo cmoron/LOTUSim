@@ -49,7 +49,7 @@ jobs:
             --event-handlers compile_commands+
         shell: bash
 
-      - name: Merge compile_commands.json
+      - name: Merge and rewrite compile_commands.json
         run: |
           mkdir -p ${GITHUB_WORKSPACE}/build
           python3 -c "
@@ -57,12 +57,29 @@ jobs:
           entries = []
           for f in glob.glob('${LOTUSIM_WS}/build/**/compile_commands.json', recursive=True):
               entries.extend(json.loads(pathlib.Path(f).read_text()))
+          # Rewrite paths: the build used /lotusim_ws/src/LOTUSim (symlink)
+          # but SonarCloud needs paths relative to GITHUB_WORKSPACE
+          for e in entries:
+              for key in ('directory', 'file', 'command'):
+                  if key in e:
+                      e[key] = e[key].replace('${LOTUSIM_PATH}', '${GITHUB_WORKSPACE}')
           pathlib.Path('${GITHUB_WORKSPACE}/build/compile_commands.json').write_text(json.dumps(entries, indent=2))
           "
         shell: bash
 
+      - name: Install sonar-scanner
+        run: |
+          SCANNER_VERSION=6.2.1.4610
+          curl -sSLo /tmp/sonar-scanner.zip \
+            https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip
+          unzip -q /tmp/sonar-scanner.zip -d /opt
+          ln -s /opt/sonar-scanner-${SCANNER_VERSION}-linux-x64/bin/sonar-scanner /usr/local/bin/sonar-scanner
+
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+        run: |
+          sonar-scanner \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${SONAR_TOKEN}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

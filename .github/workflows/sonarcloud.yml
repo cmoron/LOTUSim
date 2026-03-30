@@ -33,6 +33,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          apt-get install -y \
+            libwebsocketpp-dev \
+            libyaml-cpp-dev \
+            libboost-system-dev \
+            libsdformat14-dev
           source /opt/ros/jazzy/setup.bash
           cd ${LOTUSIM_WS}
           rosdep update
@@ -51,6 +56,7 @@ jobs:
 
       - name: Merge compile_commands.json
         run: |
+          mkdir -p ${GITHUB_WORKSPACE}/build
           cd ${LOTUSIM_WS}
           # colcon generates per-package compile_commands.json, merge them
           find build -name compile_commands.json -exec cat {} + \
@@ -64,8 +70,6 @@ jobs:
                   entries.append(obj)
           json.dump(entries, sys.stdout, indent=2)
           " > ${GITHUB_WORKSPACE}/build/compile_commands.json
-          mkdir -p ${GITHUB_WORKSPACE}/build
-          cp ${LOTUSIM_WS}/build/compile_commands.json ${GITHUB_WORKSPACE}/build/compile_commands.json 2>/dev/null || true
         shell: bash
 
       - name: SonarCloud Scan

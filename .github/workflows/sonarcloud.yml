@@ -33,15 +33,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get install -y \
-            libwebsocketpp-dev \
-            libyaml-cpp-dev \
-            libboost-system-dev \
-            libsdformat14-dev
-          source /opt/ros/jazzy/setup.bash
-          cd ${LOTUSIM_WS}
-          rosdep update
-          rosdep install --from-paths src --ignore-src -r -y
+          export VERSION_CODENAME=$(source /etc/os-release && echo "$VERSION_CODENAME")
+          export GAZEBO_VERSION="harmonic"
+          export ROS_DISTRO="jazzy"
+          ${LOTUSIM_PATH}/launch/install_dep.sh
         shell: bash
 
       - name: Build with compile_commands.json

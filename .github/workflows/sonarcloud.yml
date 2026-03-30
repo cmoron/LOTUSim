@@ -52,19 +52,13 @@ jobs:
       - name: Merge compile_commands.json
         run: |
           mkdir -p ${GITHUB_WORKSPACE}/build
-          cd ${LOTUSIM_WS}
-          # colcon generates per-package compile_commands.json, merge them
-          find build -name compile_commands.json -exec cat {} + \
-            | python3 -c "
-          import sys, json
+          python3 -c "
+          import json, glob, pathlib
           entries = []
-          for obj in json.loads('[' + sys.stdin.read().replace('][', '],[') + ']'):
-              if isinstance(obj, list):
-                  entries.extend(obj)
-              else:
-                  entries.append(obj)
-          json.dump(entries, sys.stdout, indent=2)
-          " > ${GITHUB_WORKSPACE}/build/compile_commands.json
+          for f in glob.glob('${LOTUSIM_WS}/build/**/compile_commands.json', recursive=True):
+              entries.extend(json.loads(pathlib.Path(f).read_text()))
+          pathlib.Path('${GITHUB_WORKSPACE}/build/compile_commands.json').write_text(json.dumps(entries, indent=2))
+          "
         shell: bash
 
       - name: SonarCloud Scan

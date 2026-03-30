@@ -1,0 +1,75 @@
+name: SonarCloud
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/sloretz/ros:jazzy-desktop-full
+
+    env:
+      LOTUSIM_WS: /lotusim_ws
+      LOTUSIM_PATH: /lotusim_ws/src/LOTUSim
+
+    steps:
+      - name: Install git (needed for checkout in container)
+        run: apt-get update && apt-get install -y git unzip curl
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up workspace
+        run: |
+          mkdir -p ${LOTUSIM_WS}/src
+          ln -s ${GITHUB_WORKSPACE} ${LOTUSIM_PATH}
+
+      - name: Install dependencies
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd ${LOTUSIM_WS}
+          rosdep update
+          rosdep install --from-paths src --ignore-src -r -y
+        shell: bash
+
+      - name: Build with compile_commands.json
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          cd ${LOTUSIM_WS}
+          colcon build \
+            --merge-install \
+            --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            --event-handlers compile_commands+
+        shell: bash
+
+      - name: Merge compile_commands.json
+        run: |
+          cd ${LOTUSIM_WS}
+          # colcon generates per-package compile_commands.json, merge them
+          find build -name compile_commands.json -exec cat {} + \
+            | python3 -c "
+          import sys, json
+          entries = []
+          for obj in json.loads('[' + sys.stdin.read().replace('][', '],[') + ']'):
+              if isinstance(obj, list):
+                  entries.extend(obj)
+              else:
+                  entries.append(obj)
+          json.dump(entries, sys.stdout, indent=2)
+          " > ${GITHUB_WORKSPACE}/build/compile_commands.json
+          mkdir -p ${GITHUB_WORKSPACE}/build
+          cp ${LOTUSIM_WS}/build/compile_commands.json ${GITHUB_WORKSPACE}/build/compile_commands.json 2>/dev/null || true
+        shell: bash
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
